@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -33,6 +33,8 @@ private enum class PickerKind { LOCATION, EPISODE }
 @Composable
 fun RickAndMortyApp(viewModel: AppViewModel = hiltViewModel()) {
     val search by viewModel.searchText.collectAsStateWithLifecycle()
+    val status by viewModel.selectedStatus.collectAsStateWithLifecycle()
+    val species by viewModel.selectedSpecies.collectAsStateWithLifecycle()
     val filterLabel by viewModel.activeFilter.collectAsStateWithLifecycle()
     val filtered by viewModel.filteredCharacters.collectAsStateWithLifecycle()
     val filterBusy by viewModel.filterBusy.collectAsStateWithLifecycle()
@@ -42,13 +44,14 @@ fun RickAndMortyApp(viewModel: AppViewModel = hiltViewModel()) {
     val catalogBusy by viewModel.catalogBusy.collectAsStateWithLifecycle()
     val catalogError by viewModel.catalogError.collectAsStateWithLifecycle()
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val detailEpisodes by viewModel.detailEpisodes.collectAsStateWithLifecycle()
     val detailBusy by viewModel.detailBusy.collectAsStateWithLifecycle()
     val detailError by viewModel.detailError.collectAsStateWithLifecycle()
     val characters = viewModel.characters.collectAsLazyPagingItems()
     val isOnline = rememberIsOnline()
 
-    var picker by remember { mutableStateOf<PickerKind?>(null) }
-    var detailId by remember { mutableStateOf<Int?>(null) }
+    var picker by rememberSaveable { mutableStateOf<PickerKind?>(null) }
+    var detailId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     BackHandler(enabled = detailId != null) {
         detailId = null
@@ -57,33 +60,39 @@ fun RickAndMortyApp(viewModel: AppViewModel = hiltViewModel()) {
     LaunchedEffect(detailId) { detailId?.let(viewModel::loadDetail) }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
-        if (detailId != null) {
-            DetailScreen(
-                detail = detail,
-                loading = detailBusy,
-                error = detailError,
-                onRetry = { detailId?.let(viewModel::loadDetail) },
-                onBack = {
-                    detailId = null
-                    viewModel.clearDetail()
-                },
-                modifier = Modifier.padding(padding)
-            )
-        } else {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                ConnectionBanner(isOnline)
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            ConnectionBanner(isOnline)
+            if (detailId != null) {
+                DetailScreen(
+                    detail = detail,
+                    episodes = detailEpisodes,
+                    loading = detailBusy,
+                    error = detailError,
+                    onRetry = { detailId?.let(viewModel::loadDetail) },
+                    onBack = {
+                        detailId = null
+                        viewModel.clearDetail()
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
                 FeedScreen(
                     search = search,
+                    status = status,
+                    species = species,
                     filterLabel = filterLabel,
                     filteredCharacters = filtered,
                     filterBusy = filterBusy,
                     filterError = filterError,
                     characters = characters,
                     onSearch = viewModel::updateSearch,
+                    onStatus = viewModel::toggleStatus,
+                    onSpecies = viewModel::toggleSpecies,
+                    onClearAdvanced = viewModel::clearAdvancedFilters,
                     onPickLocation = {
                         picker = PickerKind.LOCATION
                         viewModel.loadLocations()

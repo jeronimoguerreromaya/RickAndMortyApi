@@ -1,5 +1,6 @@
 package com.example.rickandmortyapi.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,8 +13,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -27,21 +30,28 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import com.example.rickandmortyapi.domain.model.Character
+import com.example.rickandmortyapi.domain.model.CharacterFilter
 import com.example.rickandmortyapi.ui.components.CharacterCard
 import com.example.rickandmortyapi.ui.components.StatusMessage
 
 /**
- * Pantalla principal: buscador, filtros y listado paginado de personajes.
+ * Pantalla principal: buscador por nombre, filtros por estado/especie,
+ * filtros por localizacion/episodio y listado paginado de personajes.
  */
 @Composable
 fun FeedScreen(
     search: String,
+    status: String?,
+    species: String?,
     filterLabel: String?,
     filteredCharacters: List<Character>?,
     filterBusy: Boolean,
     filterError: String?,
     characters: LazyPagingItems<Character>,
     onSearch: (String) -> Unit,
+    onStatus: (String) -> Unit,
+    onSpecies: (String) -> Unit,
+    onClearAdvanced: () -> Unit,
     onPickLocation: () -> Unit,
     onPickEpisode: () -> Unit,
     onClearFilter: () -> Unit,
@@ -70,7 +80,22 @@ fun FeedScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp)
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
+                FilterChipsRow(
+                    title = "Estado",
+                    options = CharacterFilter.STATUS_OPTIONS,
+                    selected = status,
+                    onToggle = onStatus
+                )
+                FilterChipsRow(
+                    title = "Especie",
+                    options = CharacterFilter.SPECIES_OPTIONS,
+                    selected = species,
+                    onToggle = onSpecies
+                )
+                if (status != null || species != null) {
+                    TextButton(onClick = onClearAdvanced) { Text("Limpiar filtros") }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onPickLocation, modifier = Modifier.weight(1f)) {
                         Text("Localización")
@@ -101,6 +126,35 @@ fun FeedScreen(
             )
         } else {
             PagedCharacterList(characters = characters, onCharacter = onCharacter)
+        }
+    }
+}
+
+@Composable
+private fun FilterChipsRow(
+    title: String,
+    options: List<String>,
+    selected: String?,
+    onToggle: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(end = 8.dp)
+        )
+        options.forEach { option ->
+            FilterChip(
+                selected = selected.equals(option, ignoreCase = true),
+                onClick = { onToggle(option) },
+                label = { Text(option.replaceFirstChar { it.uppercase() }) },
+                modifier = Modifier.padding(end = 8.dp)
+            )
         }
     }
 }

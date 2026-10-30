@@ -4,9 +4,13 @@ import com.example.rickandmortyapi.data.remote.CharacterDto
 import com.example.rickandmortyapi.data.remote.EpisodeDto
 import com.example.rickandmortyapi.data.remote.LocationDto
 import com.example.rickandmortyapi.data.remote.NamedReference
-import com.example.rickandmortyapi.data.remote.PagedResponse
 import com.example.rickandmortyapi.data.remote.PageInfo
+import com.example.rickandmortyapi.data.remote.PagedResponse
 import com.example.rickandmortyapi.data.remote.RickAndMortyApi
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 
 /**
  * Implementacion falsa de la API REST para poder probar la capa de datos
@@ -15,6 +19,7 @@ import com.example.rickandmortyapi.data.remote.RickAndMortyApi
 class FakeRickAndMortyApi : RickAndMortyApi {
 
     val requestedCharacterIds = mutableListOf<String>()
+    val requestedEpisodeIds = mutableListOf<String>()
     val requestedPages = mutableListOf<Int>()
 
     var characterPages: Map<Int, PagedResponse<CharacterDto>> = emptyMap()
@@ -29,18 +34,25 @@ class FakeRickAndMortyApi : RickAndMortyApi {
         residents = emptyList(),
         url = "https://rickandmortyapi.com/api/location/1"
     )
-    var singleEpisode: EpisodeDto = EpisodeDto(
-        id = 1,
-        name = "Pilot",
-        air_date = "2013-12-02",
-        episode = "S01E01",
-        characters = emptyList(),
-        url = "https://rickandmortyapi.com/api/episode/1"
-    )
+    var singleEpisode: EpisodeDto = episodeDto(1)
     var error: Throwable? = null
+    var httpErrorCode: Int? = null
 
-    override suspend fun characters(page: Int, name: String?): PagedResponse<CharacterDto> {
+    var lastName: String? = null
+    var lastStatus: String? = null
+    var lastSpecies: String? = null
+
+    override suspend fun characters(
+        page: Int,
+        name: String?,
+        status: String?,
+        species: String?
+    ): PagedResponse<CharacterDto> {
         requestedPages += page
+        lastName = name
+        lastStatus = status
+        lastSpecies = species
+        throwIfHttpError()
         error?.let { throw it }
         return characterPages[page] ?: emptyPage()
     }
@@ -78,6 +90,20 @@ class FakeRickAndMortyApi : RickAndMortyApi {
         return singleEpisode
     }
 
+    override suspend fun episodesByIds(ids: String): List<EpisodeDto> {
+        requestedEpisodeIds += ids
+        error?.let { throw it }
+        return ids.split(",").mapNotNull { it.trim().toIntOrNull() }.map { episodeDto(it) }
+    }
+
+    private fun throwIfHttpError() {
+        httpErrorCode?.let { code ->
+            throw HttpException(
+                Response.error<Any>(code, "{}".toResponseBody("application/json".toMediaType()))
+            )
+        }
+    }
+
     private fun <T> emptyPage(): PagedResponse<T> = PagedResponse(
         info = PageInfo(count = 0, pages = 0, next = null, prev = null),
         results = emptyList()
@@ -109,6 +135,20 @@ class FakeRickAndMortyApi : RickAndMortyApi {
             episode = episodes,
             url = "https://rickandmortyapi.com/api/character/$id",
             created = created
+        )
+
+        fun episodeDto(
+            id: Int,
+            name: String = "Episodio $id",
+            airDate: String = "2013-12-02",
+            code: String = "S01E%02d".format(id)
+        ) = EpisodeDto(
+            id = id,
+            name = name,
+            air_date = airDate,
+            episode = code,
+            characters = emptyList(),
+            url = "https://rickandmortyapi.com/api/episode/$id"
         )
     }
 }

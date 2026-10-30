@@ -24,14 +24,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.rickandmortyapi.domain.model.Character
+import com.example.rickandmortyapi.domain.model.Episode
 import com.example.rickandmortyapi.ui.components.StatusMessage
 
 /**
- * Pantalla de detalle de un personaje, alimentada por GET /character/{id}.
+ * Pantalla de detalle de un personaje, alimentada por GET /character/{id}
+ * y enriquecida con los episodios obtenidos de GET /episode/{ids}.
  */
 @Composable
 fun DetailScreen(
     detail: Character?,
+    episodes: List<Episode>,
     loading: Boolean,
     error: String?,
     onRetry: () -> Unit,
@@ -45,13 +48,13 @@ fun DetailScreen(
         when {
             loading && detail == null -> StatusMessage("Cargando personaje…", loading = true)
             error != null && detail == null -> StatusMessage(error, action = onRetry)
-            detail != null -> CharacterDetail(detail)
+            detail != null -> CharacterDetail(detail, episodes)
         }
     }
 }
 
 @Composable
-private fun CharacterDetail(character: Character) {
+private fun CharacterDetail(character: Character, episodes: List<Episode>) {
     LazyColumn(
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -82,6 +85,14 @@ private fun CharacterDetail(character: Character) {
         item { DetailField("Origen", character.originName) }
         item { DetailField("Última localización", character.lastKnownLocation) }
         item { DetailField("Aparece en", "${character.episodeCount} episodios") }
+        if (episodes.isNotEmpty()) {
+            item {
+                DetailField(
+                    "Episodios",
+                    episodes.joinToString("\n") { "${it.code} · ${it.name}" }
+                )
+            }
+        }
         item { DetailField("Creado", character.createdDate) }
     }
 }

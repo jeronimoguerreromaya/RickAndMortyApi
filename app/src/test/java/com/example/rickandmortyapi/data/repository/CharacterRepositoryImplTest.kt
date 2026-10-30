@@ -55,6 +55,24 @@ class CharacterRepositoryImplTest {
     }
 
     @Test
+    fun `episodesByIds requests the ids in batches of twenty`() = runTest {
+        val episodes = repository.episodesByIds((1..22).toList())
+
+        assertEquals(22, episodes.size)
+        assertEquals(2, api.requestedEpisodeIds.size)
+        assertEquals(20, api.requestedEpisodeIds.first().split(",").size)
+        assertEquals("Episodio 22", episodes.last().name)
+    }
+
+    @Test
+    fun `episodesByIds returns an empty list when there are no ids`() = runTest {
+        val episodes = repository.episodesByIds(emptyList())
+
+        assertTrue(episodes.isEmpty())
+        assertTrue(api.requestedEpisodeIds.isEmpty())
+    }
+
+    @Test
     fun `allLocations walks through every page`() = runTest {
         api.locationPages = mapOf(
             1 to PagedResponse(

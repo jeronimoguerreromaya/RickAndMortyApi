@@ -22,7 +22,7 @@ fun CharacterDto.toDomain(): Character = Character(
     originName = origin.name,
     lastKnownLocation = location.name,
     imageUrl = image,
-    episodeCount = episode.size,
+    episodeIds = episode.mapNotNull { it.substringAfterLast('/').toIntOrNull() },
     createdDate = created.substringBefore('T')
 )
 

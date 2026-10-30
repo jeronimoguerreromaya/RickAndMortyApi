@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.cachedIn
 import com.example.rickandmortyapi.domain.model.Character
+import com.example.rickandmortyapi.domain.model.CharacterFilter
 import com.example.rickandmortyapi.domain.model.Episode
 import com.example.rickandmortyapi.domain.model.Location
 import com.example.rickandmortyapi.domain.usecase.GetCharacterDetailUseCase
 import com.example.rickandmortyapi.domain.usecase.GetCharactersByEpisodeUseCase
 import com.example.rickandmortyapi.domain.usecase.GetCharactersByLocationUseCase
 import com.example.rickandmortyapi.domain.usecase.GetCharactersUseCase
+import com.example.rickandmortyapi.domain.usecase.GetEpisodesByIdsUseCase
 import com.example.rickandmortyapi.domain.usecase.GetEpisodesUseCase
 import com.example.rickandmortyapi.domain.usecase.GetLocationsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +20,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -33,6 +36,7 @@ import javax.inject.Inject
 class AppViewModel @Inject constructor(
     private val getCharacters: GetCharactersUseCase,
     private val getCharacterDetail: GetCharacterDetailUseCase,
+    private val getEpisodesByIds: GetEpisodesByIdsUseCase,
     private val getLocations: GetLocationsUseCase,
     private val getEpisodes: GetEpisodesUseCase,
     private val getCharactersByLocation: GetCharactersByLocationUseCase,
@@ -42,15 +46,34 @@ class AppViewModel @Inject constructor(
     private val query = MutableStateFlow("")
     val searchText: StateFlow<String> = query.asStateFlow()
 
-    /** Listado paginado (scroll infinito) alimentado por el endpoint de personajes. */
+    private val statusFilter = MutableStateFlow<String?>(null)
+    val selectedStatus: StateFlow<String?> = statusFilter.asStateFlow()
+
+    private val speciesFilter = MutableStateFlow<String?>(null)
+    val selectedSpecies: StateFlow<String?> = speciesFilter.asStateFlow()
+
+    /**
+     * Listado paginado (scroll infinito) alimentado por el endpoint de
+     * personajes. Combina la busqueda por nombre (con debounce) y los filtros
+     * de estado y especie, que la API aplica en el servidor.
+     */
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-    val characters = query
-        .debounce(SEARCH_DEBOUNCE_MS)
+    val characters = combine(
+        query.debounce(SEARCH_DEBOUNCE_MS),
+        statusFilter,
+        speciesFilter
+    ) { name, status, species ->
+        CharacterFilter(
+            name = name.takeIf { it.isNotBlank() },
+            status = status,
+            species = species
+        )
+    }
         .distinctUntilChanged()
         .flatMapLatest { getCharacters(it) }
         .cachedIn(viewModelScope)
 
-    // ---------- Filtro activo (localizacion o episodio) ----------
+    // ---------- Filtro activo por localizacion o episodio ----------
 
     private val _activeFilter = MutableStateFlow<String?>(null)
     val activeFilter: StateFlow<String?> = _activeFilter.asStateFlow()
@@ -88,6 +111,9 @@ class AppViewModel @Inject constructor(
     private val _detail = MutableStateFlow<Character?>(null)
     val detail: StateFlow<Character?> = _detail.asStateFlow()
 
+    private val _detailEpisodes = MutableStateFlow<List<Episode>>(emptyList())
+    val detailEpisodes: StateFlow<List<Episode>> = _detailEpisodes.asStateFlow()
+
     private val _detailBusy = MutableStateFlow(false)
     val detailBusy: StateFlow<Boolean> = _detailBusy.asStateFlow()
 
@@ -98,10 +124,23 @@ class AppViewModel @Inject constructor(
 
     fun updateSearch(value: String) {
         query.value = value
-        _filteredCharacters.value = null
-        _activeFilter.value = null
-        _filterError.value = null
-        retryFilter = null
+        resetManualFilter()
+    }
+
+    /** Activa o desactiva el filtro por estado (alive/dead/unknown). */
+    fun toggleStatus(value: String) {
+        statusFilter.value = if (statusFilter.value == value) null else value
+    }
+
+    /** Activa o desactiva el filtro por especie. */
+    fun toggleSpecies(value: String) {
+        speciesFilter.value = if (speciesFilter.value == value) null else value
+    }
+
+    /** Quita los filtros de estado y especie. */
+    fun clearAdvancedFilters() {
+        statusFilter.value = null
+        speciesFilter.value = null
     }
 
     fun loadLocations() = viewModelScope.launch {
@@ -154,6 +193,8 @@ class AppViewModel @Inject constructor(
 
     private fun loadFiltered(label: String, request: suspend () -> List<Character>) = viewModelScope.launch {
         query.value = ""
+        statusFilter.value = null
+        speciesFilter.value = null
         _activeFilter.value = label
         _filterBusy.value = true
         _filterError.value = null
@@ -173,18 +214,32 @@ class AppViewModel @Inject constructor(
 
     fun loadDetail(id: Int) = viewModelScope.launch {
         _detail.value = null
+        _detailEpisodes.value = emptyList()
         _detailError.value = null
         _detailBusy.value = true
         runCatching { getCharacterDetail(id) }
-            .onSuccess { _detail.value = it }
+            .onSuccess { character ->
+                _detail.value = character
+                // Los episodios enriquecen el detalle; si fallan, no rompen la pantalla.
+                runCatching { getEpisodesByIds(character.episodeIds) }
+                    .onSuccess { _detailEpisodes.value = it }
+            }
             .onFailure { _detailError.value = it.userMessage("No se pudo cargar el personaje.") }
         _detailBusy.value = false
     }
 
     fun clearDetail() {
         _detail.value = null
+        _detailEpisodes.value = emptyList()
         _detailError.value = null
         _detailBusy.value = false
+    }
+
+    private fun resetManualFilter() {
+        _filteredCharacters.value = null
+        _activeFilter.value = null
+        _filterError.value = null
+        retryFilter = null
     }
 
     private fun Throwable.userMessage(fallback: String): String =

@@ -14,6 +14,8 @@ data class Character(
     val originName: String,
     val lastKnownLocation: String,
     val imageUrl: String,
-    val episodeCount: Int,
+    val episodeIds: List<Int>,
     val createdDate: String
-)
+) {
+    val episodeCount: Int get() = episodeIds.size
+}

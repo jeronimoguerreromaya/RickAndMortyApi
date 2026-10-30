@@ -1,5 +1,6 @@
 package com.example.rickandmortyapi.ui.components
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,7 +21,8 @@ import coil.compose.AsyncImage
 import com.example.rickandmortyapi.domain.model.Character
 
 /**
- * Tarjeta de la lista principal: imagen y nombre del personaje.
+ * Tarjeta de la lista principal: imagen, nombre e informacion basica
+ * (estado y especie) del personaje.
  */
 @Composable
 fun CharacterCard(character: Character, onClick: () -> Unit) {
@@ -39,12 +41,18 @@ fun CharacterCard(character: Character, onClick: () -> Unit) {
                     .size(92.dp)
                     .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
             )
-            Text(
-                character.name,
-                modifier = Modifier.padding(horizontal = 16.dp),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(
+                    character.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "${character.status} · ${character.species}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

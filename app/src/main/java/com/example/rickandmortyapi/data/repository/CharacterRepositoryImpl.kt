@@ -10,6 +10,7 @@ import com.example.rickandmortyapi.data.mapper.toDomainLocations
 import com.example.rickandmortyapi.data.paging.CharacterPagingSource
 import com.example.rickandmortyapi.data.remote.RickAndMortyApi
 import com.example.rickandmortyapi.domain.model.Character
+import com.example.rickandmortyapi.domain.model.CharacterFilter
 import com.example.rickandmortyapi.domain.model.Episode
 import com.example.rickandmortyapi.domain.model.Location
 import com.example.rickandmortyapi.domain.repository.CharacterRepository
@@ -26,9 +27,9 @@ class CharacterRepositoryImpl @Inject constructor(
     private val api: RickAndMortyApi
 ) : CharacterRepository {
 
-    override fun characters(name: String?): Flow<PagingData<Character>> = Pager(
+    override fun characters(filter: CharacterFilter): Flow<PagingData<Character>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false),
-        pagingSourceFactory = { CharacterPagingSource(api, name) }
+        pagingSourceFactory = { CharacterPagingSource(api, filter) }
     ).flow
 
     override suspend fun allLocations(): List<Location> = loadAllPages(
@@ -48,6 +49,15 @@ class CharacterRepositoryImpl @Inject constructor(
         charactersForUrls(api.episode(episodeId).characters)
 
     override suspend fun character(id: Int): Character = api.character(id).toDomain()
+
+    override suspend fun episodesByIds(ids: List<Int>): List<Episode> =
+        ids.chunked(IDS_BATCH_SIZE).flatMap { batch ->
+            when (batch.size) {
+                0 -> emptyList()
+                1 -> listOf(api.episode(batch.single()).toDomain())
+                else -> api.episodesByIds(batch.joinToString(",")).toDomainEpisodes()
+            }
+        }
 
     /**
      * Recorre todas las paginas de un recurso paginado y acumula los resultados.

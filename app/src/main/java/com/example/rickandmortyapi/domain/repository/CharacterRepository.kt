@@ -2,6 +2,7 @@ package com.example.rickandmortyapi.domain.repository
 
 import androidx.paging.PagingData
 import com.example.rickandmortyapi.domain.model.Character
+import com.example.rickandmortyapi.domain.model.CharacterFilter
 import com.example.rickandmortyapi.domain.model.Episode
 import com.example.rickandmortyapi.domain.model.Location
 import kotlinx.coroutines.flow.Flow
@@ -12,8 +13,8 @@ import kotlinx.coroutines.flow.Flow
  */
 interface CharacterRepository {
 
-    /** Listado paginado de personajes, opcionalmente filtrado por nombre. */
-    fun characters(name: String?): Flow<PagingData<Character>>
+    /** Listado paginado de personajes, filtrado por nombre/estado/especie. */
+    fun characters(filter: CharacterFilter): Flow<PagingData<Character>>
 
     /** Todas las localizaciones disponibles para filtrar. */
     suspend fun allLocations(): List<Location>
@@ -29,4 +30,7 @@ interface CharacterRepository {
 
     /** Detalle completo de un personaje. */
     suspend fun character(id: Int): Character
+
+    /** Episodios concretos a partir de sus ids (para el detalle del personaje). */
+    suspend fun episodesByIds(ids: List<Int>): List<Episode>
 }
